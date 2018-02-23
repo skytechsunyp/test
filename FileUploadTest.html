@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>文件上传-测试</title>
+    <script type="text/javascript" src="lib/jquery/jquery.min.js"></script>
+
+     <!--websocket IE10+ support, so compatible with IE8,9 -->
+    <script type="text/javascript" src="lib/websocket/swfobject.js"></script>
+    <script type="text/javascript" src="lib/websocket/web_socket.js"></script>
+
+    <script type="text/javascript">
+        var uploader = (function() {
+            WEB_SOCKET_SWF_LOCATION = "lib/websocket/WebSocketMain.swf";
+            var _url;
+            var _maxSize;
+            var _ws;
+            var _files, _fileLength, _currentFileIndex;
+
+            function _create(url, uploadFileFragmentSize) {
+                _url = url;
+                _maxSize = uploadFileFragmentSize;
+            }
+
+            function _getFileContent(file, totalSize, leftSize) {
+                var startIndex = totalSize - leftSize;
+                var endIndex = leftSize > _maxSize ? (startIndex + _maxSize) : (startIndex + leftSize);
+                return file.slice(startIndex, endIndex);
+            }
+
+            function _uploadSingleFile(file, connectDefobj, labelCtrl) {
+                console.info("上传第" + _currentFileIndex + "个文件");
+                var totalSize = file.size;
+                var leftSize = file.size;
+
+                $(_ws).unbind("message");
+                $(_ws).bind("message", function(e) {
+                    console.log("开始上传文件片断...");
+                    var uploadExcute = function () {
+                        var defobj = $.Deferred();
+                        $(_ws).unbind("message");
+                        $(_ws).bind("message", function (e) {
+                            leftSize = leftSize - $.parseJSON(e.originalEvent.data).length;
+                            labelCtrl.text(((totalSize - leftSize) / totalSize).toFixed(2) * 100);
+                            if (leftSize != 0) {
+                                _ws.send(_getFileContent(file, totalSize, leftSize));
+                            }
+                            else {
+                                defobj.resolve();
+                            }
+                        });
+                        _ws.send(_getFileContent(file, totalSize, leftSize));
+                        return defobj.promise();
+                    };
+
+                    $.when(uploadExcute()).done(function () {
+                        console.log("结束上传");
+                        $(_ws).unbind("message");
+                        $(_ws).bind("message", function (e) {
+                            _currentFileIndex++;
+                            if (_currentFileIndex == _fileLength) {
+                                connectDefobj.resolve();
+                            }
+                            else {
+                                _uploadSingleFile(_files[_currentFileIndex], connectDefobj);
+                            }
+                        });
+                        _ws.send("结束上传");
+                    });
+                });
+
+                _ws.send("开始上传");
+            }
+
+            function _upload(govresourceId, files, labelCtrl) {
+                _files = files;
+                _fileLength = files.length;
+
+                var connectEexcute = function() {
+                    var defobj = $.Deferred();
+                    _ws = new WebSocket(_url);
+                    $(_ws).bind("open", function(e) {
+                        console.log("建立连接");
+                        _ws.send(govresourceId);
+                    }).bind("message", function(e) {
+                        _currentFileIndex = 0;
+                        _uploadSingleFile(_files[_currentFileIndex], defobj, labelCtrl);
+                    });
+
+                    return defobj.promise();
+                };
+
+                $.when(connectEexcute()).done(function() {
+                    _ws.close();
+                    console.log("关闭连接");
+                });
+            }
+
+            return {
+                createConnection : _create,
+                uploadFile : _upload
+            };
+        })();
+
+
+        var uploadfiles = [];
+        $(document).ready(function() {
+            $("#spy").click(function (e) {
+                $("#fileSelector").click();
+            });
+
+            $("#fileSelector").change(function (e) {
+                var files = $("#fileSelector")[0].files;
+                var length = files.length;
+                for (var index = 0; index < length; index++) {
+                    if (files[index].name.substring(files[index].name.lastIndexOf(".") + 1) == "xls") {
+                        uploadfiles.push(files[index]);
+                    }
+                }
+                $("#show").text(uploadfiles[0].name);
+            });
+            $("#fileUploader").click(function (e) {
+//                uploader.createConnection("ws://localhost:8090/upload/fileHandler", 1024);
+                uploader.createConnection("ws://localhost:8012/pukou/fileHandler", 1024);
+                var govresourceId = "f9444ba2-fbcf-47b2-b7e8-699eb31ba6af";
+
+                var label = $("#process");
+                uploader.uploadFile(govresourceId, uploadfiles, label);
+            });
+        });
+    </script>
+</head>
+<body>
+<p>
+    <input type="file" id="fileSelector" multiple style="display:none;"/>
+    <button id="spy">选择文件</button>
+    <button id="fileUploader">上传文件</button>
+</p>
+<p>
+    <label id="show"></label>
+    <label id="process"></label>
+</p>
+</body>
+</html>

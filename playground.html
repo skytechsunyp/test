@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="testing">
+<head>
+    <meta charset="UTF-8">
+    <title>testingPageForDirective</title>
+    <script type="application/javascript" src="lib/angular/angular.js"></script>
+    <script type="text/javascript" src="lib/bootstrap/js/bootstrap.min.js"></script>
+    <link type="text/css" rel="stylesheet" href="lib/bootstrap/css/bootstrap.min.css"/>
+
+</head>
+<script type="application/javascript">
+    angular.module('testing', [])
+            .controller('postingCtrl', function ($scope, $http) {
+
+                $scope.submit = function () {
+                    $http.post($scope.url, $scope.postBody)
+                            .success(function (response) {
+                                $scope.result = response.data;
+                            })
+                }
+            })
+</script>
+<body ng-controller="postingCtrl">
+<a href="http://localhost:8091/pukou/pre-login?token=randomnumber">免登陆连接</a>
+
+<p>----帅气的分割线----</p>
+<a href="http://localhost:8091/pukou/pre-login?token=fakeId">需要登陆的连接</a>
+<input class="form-control" ng-model="url">
+<textarea class="form-control" ng-model="postBody">
+
+</textarea>
+<botton class="btn btn-default" ng-click="submit()">提交</botton>
+
+<pre>
+    {{result | json }}
+</pre>
+
+</body>
+</html>
